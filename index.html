@@ -244,6 +244,30 @@
 </head>
 <body>
 
+<!-- Settings Modal -->
+<div id="settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:24px;width:calc(100% - 40px);max-width:480px;max-height:90vh;overflow-y:auto;">
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:16px;">⚙️ API設定</h2>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:16px;">キーはこのブラウザにのみ保存されます。GitHubには送信されません。</p>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px;">ANTHROPIC API KEY（OCR用）</label>
+      <input type="password" id="s-anthropic" class="form-control" placeholder="sk-ant-...">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px;">GOOGLE CLIENT ID（カレンダー用）</label>
+      <input type="text" id="s-google-cid" class="form-control" placeholder="xxxx.apps.googleusercontent.com">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px;">GOOGLE API KEY（カレンダー用）</label>
+      <input type="text" id="s-google-key" class="form-control" placeholder="AIzaSy...">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" style="flex:1;" id="settings-save-btn">保存</button>
+      <button class="btn btn-secondary" style="flex:1;" id="settings-close-btn">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <!-- Loading -->
 <div id="loading-overlay"><div class="spinner"></div></div>
 <!-- Toast -->
@@ -267,6 +291,7 @@
   <div class="app-header">
     <h1>📋 利用者管理</h1>
     <button class="btn btn-secondary btn-sm" id="reload-btn">↺ 更新</button>
+    <button class="btn btn-secondary btn-sm" id="settings-btn">⚙️</button>
     <button class="btn btn-secondary btn-sm" id="logout-btn">ログアウト</button>
   </div>
   <div class="search-wrap">
@@ -492,7 +517,7 @@
 // CONSTANTS  (書き換えてから使用してください)
 // ============================================================
 const REDIRECT_URI        = "ここを後で書き換え";
-const ANTHROPIC_API_KEY   = "ここにAPIキーを入力";
+const ANTHROPIC_API_KEY   = localStorage.getItem("anthropic_api_key") || "";
 const GOOGLE_CLIENT_ID    = "ここにGoogle Client IDを入力";
 const GOOGLE_API_KEY      = "ここにGoogle API Keyを入力";
 
@@ -899,7 +924,8 @@ function resizeImg(file) {
 
 async function runOCR() {
   if (!ocrBase64) { toast("画像を選択してください","error"); return; }
-  if (ANTHROPIC_API_KEY==="ここにAPIキーを入力") { toast("Anthropic APIキーを設定してください","error"); return; }
+  const ANTHROPIC_API_KEY = localStorage.getItem("anthropic_api_key")||"";
+  if (!ANTHROPIC_API_KEY) { toast("⚙️ 設定からAnthropicのAPIキーを入力してください","error"); return; }
   const btn = document.getElementById("ocr-btn");
   btn.disabled = true;
   loading(true);
@@ -1240,6 +1266,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error("MSAL初期化エラー:", e);
     document.getElementById("login-btn").textContent = "⚠️ 再読み込みしてください";
   }
+
+  // Settings modal
+  document.getElementById("settings-btn").addEventListener("click", ()=>{
+    document.getElementById("s-anthropic").value = localStorage.getItem("anthropic_api_key")||"";
+    document.getElementById("s-google-cid").value = localStorage.getItem("google_client_id")||"";
+    document.getElementById("s-google-key").value = localStorage.getItem("google_api_key")||"";
+    document.getElementById("settings-modal").style.display = "flex";
+  });
+  document.getElementById("settings-close-btn").addEventListener("click", ()=>{
+    document.getElementById("settings-modal").style.display = "none";
+  });
+  document.getElementById("settings-save-btn").addEventListener("click", ()=>{
+    const ak = document.getElementById("s-anthropic").value.trim();
+    const gc = document.getElementById("s-google-cid").value.trim();
+    const gk = document.getElementById("s-google-key").value.trim();
+    if (ak) localStorage.setItem("anthropic_api_key", ak);
+    if (gc) localStorage.setItem("google_client_id", gc);
+    if (gk) localStorage.setItem("google_api_key", gk);
+    document.getElementById("settings-modal").style.display = "none";
+    toast("設定を保存しました", "success");
+    // Google認証を再初期化
+    if (gc && window.google?.accounts) onGoogleLoad();
+  });
 
   document.getElementById("login-btn").addEventListener("click", login);
   document.getElementById("logout-btn").addEventListener("click", logout);
