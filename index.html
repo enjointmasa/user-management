@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>利用者管理 - エンジョイント</title>
+  <meta name="theme-color" content="#1d4ed8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="利用者管理">
+
+  <!-- MSAL.js v2 (Microsoft 公式CDN) -->
+  <script src="https://alcdn.msauth.net/browser/2.33.0/js/msal-browser.min.js"></script>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" onload="onGoogleLoad()" async defer></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #1d4ed8;
+      --primary-light: #eff6ff;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-500: #6b7280;
+      --gray-700: #374151;
+      --gray-900: #111827;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06);
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'メイリオ', sans-serif;
+      font-size: 14px; color: var(--gray-900); background: var(--gray-50); min-height: 100vh;
+    }
+    .screen { display: none; min-height: 100vh; flex-direction: column; }
+    .screen.active { display: flex; }
+    .container { width: 100%; max-width: 640px; margin: 0 auto; padding: 0 16px; }
+
+    /* Header */
+    .app-header {
+      background: var(--primary); color: white; padding: 12px 16px;
+      display: flex; align-items: center; gap: 10px;
+      position: sticky; top: 0; z-index: 100; flex-shrink: 0;
+    }
+    .app-header h1 { font-size: 16px; font-weight: 600; flex: 1; }
+    .header-icon-btn {
+      background: transparent; border: none; color: white;
+      font-size: 22px; line-height: 1; padding: 4px; cursor: pointer;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 16px; border-radius: var(--radius); border: none; cursor: pointer;
+      font-size: 14px; font-weight: 500; transition: opacity .15s; line-height: 1;
+      -webkit-appearance: none;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover:not(:disabled) { background: #1e40af; }
+    .btn-secondary { background: white; color: var(--gray-700); border: 1px solid var(--gray-300); }
+    .btn-secondary:hover:not(:disabled) { background: var(--gray-50); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-google { background: white; color: #4285f4; border: 1px solid #4285f4; }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
+    .btn-full { width: 100%; }
+
+    /* Form */
+    .form-group { margin-bottom: 14px; }
+    .form-label {
+      display: block; font-size: 11px; font-weight: 700; color: var(--gray-500);
+      margin-bottom: 4px; text-transform: uppercase; letter-spacing: .4px;
+    }
+    .form-label.req::after { content: ' *'; color: var(--danger); }
+    .form-control {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--gray-300);
+      border-radius: var(--radius); font-size: 14px; color: var(--gray-900);
+      background: white; transition: border-color .15s; -webkit-appearance: none;
+    }
+    .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(29,78,216,.1); }
+    .form-control[readonly], .form-control:read-only { background: var(--gray-100); color: var(--gray-500); }
+    textarea.form-control { resize: vertical; min-height: 76px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-check { display: flex; align-items: center; gap: 8px; }
+    .form-check input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; flex-shrink: 0; }
+    .form-check label { cursor: pointer; font-size: 14px; }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex; background: white; border-bottom: 2px solid var(--gray-200);
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      position: sticky; top: 52px; z-index: 90; scrollbar-width: none; flex-shrink: 0;
+    }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex-shrink: 0; padding: 11px 13px; border: none; background: none;
+      font-size: 12px; color: var(--gray-500); cursor: pointer;
+      border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap;
+    }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 700; }
+    .tab-content { display: none; padding: 16px; overflow-y: auto; flex: 1; }
+    .tab-content.active { display: block; }
+
+    /* Badge */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-gray { background: var(--gray-200); color: var(--gray-700); }
+    .badge-yellow { background: #fef9c3; color: #854d0e; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+
+    /* User card */
+    .user-card {
+      background: white; border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 13px 14px; margin-bottom: 8px; cursor: pointer;
+      display: flex; align-items: center; gap: 12px; transition: box-shadow .15s;
+      border: 1px solid var(--gray-100);
+    }
+    .user-card:active { box-shadow: var(--shadow-md); background: var(--gray-50); }
+    .user-avatar {
+      width: 42px; height: 42px; border-radius: 50%; background: var(--primary-light);
+      color: var(--primary); display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 700; flex-shrink: 0;
+    }
+    .user-card-body { flex: 1; min-width: 0; }
+    .user-card-name { font-weight: 600; font-size: 15px; margin-bottom: 1px; }
+    .user-card-sub { font-size: 11px; color: var(--gray-500); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-card-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+
+    /* Search bar */
+    .search-wrap { padding: 10px 14px; background: white; border-bottom: 1px solid var(--gray-200); flex-shrink: 0; }
+    .search-input {
+      width: 100%; padding: 9px 12px 9px 36px; border: 1px solid var(--gray-300);
+      border-radius: 999px; font-size: 14px;
+      background: var(--gray-50) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") 10px center / 16px no-repeat;
+    }
+    .search-input:focus { outline: none; border-color: var(--primary); }
+
+    /* Loading */
+    #loading-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      z-index: 9999; align-items: center; justify-content: center;
+    }
+    #loading-overlay.active { display: flex; }
+    .spinner {
+      width: 44px; height: 44px; border: 4px solid rgba(255,255,255,.3);
+      border-top-color: white; border-radius: 50%; animation: spin .65s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Toast */
+    #toast-container {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 10000; display: flex; flex-direction: column; gap: 8px;
+      align-items: center; pointer-events: none; width: 90%; max-width: 340px;
+    }
+    .toast {
+      background: var(--gray-900); color: white; padding: 10px 18px;
+      border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-md);
+      animation: slideUp .2s ease; text-align: center; width: 100%;
+    }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } }
+
+    /* Login */
+    #login-screen { background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%); align-items: center; justify-content: center; }
+    .login-card {
+      background: white; border-radius: 20px; padding: 36px 28px;
+      width: calc(100% - 40px); max-width: 360px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    }
+    .login-logo { font-size: 48px; margin-bottom: 10px; }
+    .login-title { font-size: 21px; font-weight: 700; color: var(--gray-900); margin-bottom: 4px; }
+    .login-subtitle { font-size: 13px; color: var(--gray-500); margin-bottom: 28px; }
+
+    /* FAB */
+    .fab {
+      position: fixed; bottom: 24px; right: 20px; width: 56px; height: 56px;
+      border-radius: 50%; background: var(--primary); color: white; border: none;
+      font-size: 26px; cursor: pointer; box-shadow: 0 4px 14px rgba(29,78,216,.45);
+      display: flex; align-items: center; justify-content: center; z-index: 50;
+    }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 52px 16px; color: var(--gray-500); }
+    .empty-icon { font-size: 44px; margin-bottom: 12px; }
+    .empty-text { font-size: 15px; }
+
+    /* Section title */
+    .section-title {
+      font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase;
+      letter-spacing: .5px; margin: 18px 0 10px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--gray-200); }
+
+    /* Card */
+    .card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; margin-bottom: 10px; }
+
+    /* Schedule item */
+    .sched-item { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; }
+    .sched-title { font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 8px; }
+    .sched-row { display: flex; gap: 8px; align-items: center; }
+    .sched-row .form-control { flex: 1; }
+
+    /* Service group */
+    .svc-group { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; }
+    .svc-title { font-size: 11px; font-weight: 700; color: var(--primary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .4px; }
+
+    /* OCR */
+    .doc-btn {
+      padding: 8px 11px; border: 1.5px solid var(--gray-300); border-radius: 6px;
+      background: white; font-size: 12px; cursor: pointer; transition: all .15s;
+    }
+    .doc-btn.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: 700; }
+    .ocr-preview { display: none; margin-top: 12px; }
+    .ocr-preview img { width: 100%; max-height: 220px; object-fit: contain; border-radius: var(--radius); border: 1px solid var(--gray-200); }
+
+    /* Detail */
+    .detail-row { display: flex; padding: 9px 0; border-bottom: 1px solid var(--gray-100); gap: 10px; }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { font-size: 12px; color: var(--gray-500); width: 130px; flex-shrink: 0; padding-top: 1px; }
+    .detail-value { font-size: 14px; color: var(--gray-900); word-break: break-all; flex: 1; }
+
+    /* Scroll area for list */
+    .list-scroll { flex: 1; overflow-y: auto; padding: 12px 14px 80px; }
+
+    @media (max-width: 400px) {
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading-overlay"><div class="spinner"></div></div>
+<!-- Toast -->
+<div id="toast-container"></div>
+
+<!-- ① Login -->
+<div id="login-screen" class="screen">
+  <div class="login-card">
+    <div class="login-logo">📋</div>
+    <div class="login-title">利用者管理</div>
+    <div class="login-subtitle">相談支援事業所エンジョイント</div>
+    <button class="btn btn-primary btn-full" id="login-btn" style="font-size:15px;padding:13px 16px;">
+      <svg width="20" height="20" viewBox="0 0 21 21" style="flex-shrink:0"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+      Microsoftアカウントでログイン
+    </button>
+  </div>
+</div>
+
+<!-- ② Dashboard -->
+<div id="dashboard-screen" class="screen">
+  <div class="app-header">
+    <h1>📋 利用者管理</h1>
+    <button class="btn btn-secondary btn-sm" id="reload-btn">↺ 更新</button>
+    <button class="btn btn-secondary btn-sm" id="logout-btn">ログアウト</button>
+  </div>
+  <div class="search-wrap">
+    <input type="search" class="search-input" id="search-input" placeholder="氏名・フリガナで検索...">
+  </div>
+  <div class="list-scroll" id="user-list">
+    <div class="empty-state"><div class="empty-icon">📂</div><div class="empty-text">読み込み中...</div></div>
+  </div>
+  <button class="fab" id="new-btn" title="新規登録">＋</button>
+</div>
+
+<!-- ③ Form -->
+<div id="form-screen" class="screen">
+  <div class="app-header">
+    <button class="header-icon-btn" id="form-back-btn">←</button>
+    <h1 id="form-title">新規登録</h1>
+    <button class="btn btn-primary btn-sm" id="form-save-btn" disabled>保存</button>
+  </div>
+  <div class="tab-bar" id="form-tabs">
+    <button class="tab-btn active" data-tab="t-ocr">📷 OCR</button>
+    <button class="tab-btn" data-tab="t-basic">👤 基本情報</button>
+    <button class="tab-btn" data-tab="t-med">🏥 手帳・医療</button>
+    <button class="tab-btn" data-tab="t-wel">📄 受給者証</button>
+    <button class="tab-btn" data-tab="t-sched">📅 予定・チェック</button>
+  </div>
+
+  <!-- OCR tab -->
+  <div id="t-ocr" class="tab-content active">
+    <div class="section-title" style="margin-top:0;">書類種別</div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px;" id="doc-type-btns">
+      <button class="doc-btn active" data-doc="受給者証">受給者証</button>
+      <button class="doc-btn" data-doc="療育手帳">療育手帳</button>
+      <button class="doc-btn" data-doc="精神手帳">精神手帳</button>
+      <button class="doc-btn" data-doc="身体手帳">身体手帳</button>
+      <button class="doc-btn" data-doc="自立支援医療">自立支援医療</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">書類を撮影 / 選択</label>
+      <input type="file" id="ocr-file" accept="image/*" capture="environment" style="display:none">
+      <button class="btn btn-secondary btn-full" onclick="document.getElementById('ocr-file').click()">
+        📸 カメラ撮影 / ファイル選択
+      </button>
+    </div>
+    <div class="ocr-preview" id="ocr-preview"><img id="ocr-img" src="" alt="preview"></div>
+    <button class="btn btn-primary btn-full" id="ocr-btn" disabled style="margin-top:10px;">🤖 AIで自動入力</button>
+    <p style="font-size:12px;color:var(--gray-500);margin-top:8px;text-align:center;">読み取り結果は各タブへ自動入力されます</p>
+  </div>
+
+  <!-- Basic tab -->
+  <div id="t-basic" class="tab-content">
+    <div class="form-group"><label class="form-label">利用者ID</label><input type="text" class="form-control" id="f-id" readonly placeholder="自動採番"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label req">氏名</label><input type="text" class="form-control" id="f-name" placeholder="山田 太郎"></div>
+      <div class="form-group"><label class="form-label">フリガナ</label><input type="text" class="form-control" id="f-kana" placeholder="ヤマダ タロウ"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">生年月日</label><input type="date" class="form-control" id="f-dob"></div>
+      <div class="form-group"><label class="form-label">年齢</label><input type="text" class="form-control" id="f-age" readonly placeholder="自動計算"></div>
+    </div>
+    <div class="form-group"><label class="form-label">連絡先</label><input type="tel" class="form-control" id="f-phone" placeholder="090-0000-0000"></div>
+    <div class="form-group"><label class="form-label">住所</label><input type="text" class="form-control" id="f-address" placeholder="〒000-0000 ○○市..."></div>
+    <div class="form-group"><label class="form-label">担当相談員</label><input type="text" class="form-control" id="f-staff"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">契約状況</label>
+        <select class="form-control" id="f-status">
+          <option value="契約前">契約前</option>
+          <option value="契約中">契約中</option>
+          <option value="終了">終了</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">特別地域加算</label>
+        <div style="padding-top:10px;"><div class="form-check"><input type="checkbox" id="f-special"><label for="f-special">該当</label></div></div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">契約開始(予定)日</label><input type="date" class="form-control" id="f-cstart"></div>
+      <div class="form-group"><label class="form-label">契約終了月</label><input type="month" class="form-control" id="f-cend"></div>
+    </div>
+    <div class="form-group"><label class="form-label">備考</label><textarea class="form-control" id="f-notes" rows="3" placeholder="自由記述..."></textarea></div>
+  </div>
+
+  <!-- Medical tab -->
+  <div id="t-med" class="tab-content">
+    <div class="section-title" style="margin-top:0;">療育手帳</div>
+    <div class="form-group"><label class="form-label">等級</label><input type="text" class="form-control" id="f-ryo" placeholder="A1・A2・B1・B2 など"></div>
+    <div class="section-title">精神障害者保健福祉手帳</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">等級</label><input type="text" class="form-control" id="f-sei" placeholder="1級・2級・3級"></div>
+      <div class="form-group"><label class="form-label">発行市町村</label><input type="text" class="form-control" id="f-sei-city" placeholder="○○市"></div>
+    </div>
+    <div class="section-title">身体障害者手帳</div>
+    <div class="form-group"><label class="form-label">等級</label><input type="text" class="form-control" id="f-shin" placeholder="1級〜6級"></div>
+    <div class="section-title">自立支援医療</div>
+    <div class="form-group"><label class="form-label">種別</label><input type="text" class="form-control" id="f-jiritu" placeholder="精神通院・更生医療・育成医療"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">有効期限</label><input type="date" class="form-control" id="f-jiritu-exp"></div>
+      <div class="form-group"><label class="form-label">発行市町村</label><input type="text" class="form-control" id="f-jiritu-city" placeholder="○○市"></div>
+    </div>
+  </div>
+
+  <!-- Welfare tab -->
+  <div id="t-wel" class="tab-content">
+    <div class="form-group"><label class="form-label">福祉サービス受給者証の発行市町村</label><input type="text" class="form-control" id="f-wcity" placeholder="○○市"></div>
+    <div class="form-group">
+      <label class="form-label">障害支援区分</label>
+      <select class="form-control" id="f-kubun">
+        <option value="">-</option>
+        <option>非該当</option><option>区分1</option><option>区分2</option>
+        <option>区分3</option><option>区分4</option><option>区分5</option><option>区分6</option>
+      </select>
+    </div>
+    <div class="section-title">認定有効期間</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">から</label><input type="date" class="form-control" id="f-cert-f"></div>
+      <div class="form-group"><label class="form-label">まで</label><input type="date" class="form-control" id="f-cert-t"></div>
+    </div>
+    <div class="section-title">計画相談の支給期間</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">から</label><input type="date" class="form-control" id="f-plan-f"></div>
+      <div class="form-group"><label class="form-label">まで</label><input type="date" class="form-control" id="f-plan-t"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">次回計画更新日</label><input type="date" class="form-control" id="f-next-plan"></div>
+      <div class="form-group"><label class="form-label">モニタリング期間</label><input type="text" class="form-control" id="f-monitoring" placeholder="例: 6ヶ月"></div>
+    </div>
+    <div class="section-title">利用者負担適用期間</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">から</label><input type="date" class="form-control" id="f-burden-f"></div>
+      <div class="form-group"><label class="form-label">まで</label><input type="date" class="form-control" id="f-burden-t"></div>
+    </div>
+    <div class="svc-group">
+      <div class="svc-title">① サービス</div>
+      <div class="form-group"><label class="form-label">種別</label><input type="text" class="form-control" id="f-svc1" placeholder="居宅介護・就労継続B型 など"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">支給決定期間(から)</label><input type="date" class="form-control" id="f-svc1-f"></div>
+        <div class="form-group"><label class="form-label">支給決定期間(まで)</label><input type="date" class="form-control" id="f-svc1-t"></div>
+      </div>
+    </div>
+    <div class="svc-group">
+      <div class="svc-title">② サービス</div>
+      <div class="form-group"><label class="form-label">種別</label><input type="text" class="form-control" id="f-svc2" placeholder="（任意）"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">支給決定期間(から)</label><input type="date" class="form-control" id="f-svc2-f"></div>
+        <div class="form-group"><label class="form-label">支給決定期間(まで)</label><input type="date" class="form-control" id="f-svc2-t"></div>
+      </div>
+    </div>
+    <div class="svc-group">
+      <div class="svc-title">③ サービス</div>
+      <div class="form-group"><label class="form-label">種別</label><input type="text" class="form-control" id="f-svc3" placeholder="（任意）"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">支給決定期間(から)</label><input type="date" class="form-control" id="f-svc3-f"></div>
+        <div class="form-group"><label class="form-label">支給決定期間(まで)</label><input type="date" class="form-control" id="f-svc3-t"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule/Check tab -->
+  <div id="t-sched" class="tab-content">
+    <div class="section-title" style="margin-top:0;">予定登録</div>
+    <div class="sched-item">
+      <div class="sched-title">📝 契約</div>
+      <div class="sched-row"><input type="date" class="form-control" id="fs-contract"><button class="btn btn-google btn-sm" data-sched="契約" data-color="1">📅 登録</button></div>
+    </div>
+    <div class="sched-item">
+      <div class="sched-title">📋 アセスメント・計画案作成</div>
+      <div class="sched-row"><input type="date" class="form-control" id="fs-assess"><button class="btn btn-google btn-sm" data-sched="アセスメント・計画案作成" data-color="2">📅 登録</button></div>
+    </div>
+    <div class="sched-item">
+      <div class="sched-title">👥 担当者会議</div>
+      <div class="sched-row"><input type="date" class="form-control" id="fs-meeting"><button class="btn btn-google btn-sm" data-sched="担当者会議" data-color="3">📅 登録</button></div>
+    </div>
+    <div class="sched-item">
+      <div class="sched-title">🔄 引継ぎ</div>
+      <div class="sched-row"><input type="date" class="form-control" id="fs-handover"><button class="btn btn-google btn-sm" data-sched="引継ぎ" data-color="4">📅 登録</button></div>
+    </div>
+    <div class="sched-item">
+      <div class="sched-title">📊 モニタリング</div>
+      <div class="sched-row"><input type="date" class="form-control" id="fs-monitor"><button class="btn btn-google btn-sm" data-sched="モニタリング" data-color="5">📅 登録</button></div>
+    </div>
+    <div class="sched-item">
+      <div class="sched-title">🔁 計画更新</div>
+      <div class="sched-row"><input type="date" class="form-control" id="fs-planupd"><button class="btn btn-google btn-sm" data-sched="計画更新" data-color="6">📅 登録</button></div>
+    </div>
+    <div class="section-title" style="margin-top:20px;">進捗チェック</div>
+    <div class="card">
+      <div class="form-check" style="margin-bottom:12px;"><input type="checkbox" id="f-cdone"><label for="f-cdone">✅ 契約完了</label></div>
+      <div class="form-check"><input type="checkbox" id="f-rdone"><label for="f-rdone">📄 受給者証受取</label></div>
+    </div>
+  </div>
+</div>
+
+<!-- ④ Detail -->
+<div id="detail-screen" class="screen">
+  <div class="app-header">
+    <button class="header-icon-btn" id="detail-back-btn">←</button>
+    <h1 id="detail-title">詳細</h1>
+    <button class="btn btn-secondary btn-sm" id="detail-edit-btn">編集</button>
+  </div>
+  <div class="tab-bar" id="detail-tabs">
+    <button class="tab-btn active" data-dtab="dt-basic">👤 基本情報</button>
+    <button class="tab-btn" data-dtab="dt-med">🏥 手帳・医療</button>
+    <button class="tab-btn" data-dtab="dt-wel">📄 受給者証</button>
+    <button class="tab-btn" data-dtab="dt-sched">📅 予定・チェック</button>
+  </div>
+  <div style="flex:1;overflow-y:auto;">
+    <div id="dt-basic" class="tab-content active"></div>
+    <div id="dt-med" class="tab-content"></div>
+    <div id="dt-wel" class="tab-content"></div>
+    <div id="dt-sched" class="tab-content"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONSTANTS  (書き換えてから使用してください)
+// ============================================================
+const REDIRECT_URI        = "ここを後で書き換え";
+const ANTHROPIC_API_KEY   = "ここにAPIキーを入力";
+const GOOGLE_CLIENT_ID    = "ここにGoogle Client IDを入力";
+const GOOGLE_API_KEY      = "ここにGoogle API Keyを入力";
+
+const AZURE_CLIENT_ID = "405cc58b-abd1-44da-a6b8-6d26d044164e";
+const AZURE_TENANT_ID = "f0796f06-778d-4183-b5d9-4cce701de452";
+const MSAL_SCOPES     = ["Files.ReadWrite", "User.Read"];
+
+const GRAPH_BASE  = "https://graph.microsoft.com/v1.0/me";
+const EXCEL_FOLDER = encodeURIComponent("相談支援事業所エンジョイント");
+const EXCEL_FILE   = encodeURIComponent("★利用者管理シート_相談支援_v3.xlsx");
+const EXCEL_URL    = `${GRAPH_BASE}/drive/root:/${EXCEL_FOLDER}/${EXCEL_FILE}:`;
+const SHEET_NAME   = "利用者DBマスター";
+const TABLE_NAME   = "利用者DBテーブル";
+
+const COLUMNS = [
+  "利用者ID","氏名","フリガナ","契約状況","契約開始(予定)日","契約終了月",
+  "生年月日","年齢","連絡先","住所","特別地域加算該当","担当相談員",
+  "療育手帳","精神手帳","精神手帳の発行市町村","身体手帳",
+  "自立支援医療","自立支援医療の有効期限","自立支援医療の発行市町村",
+  "福祉サービス受給者証の発行市町村","障害支援区分",
+  "認定有効期間(から)","認定有効期間(まで)","備考",
+  "計画相談の支給期間(から)","計画相談の支給期間(まで)","次回計画更新日",
+  "モニタリング期間","利用者負担適用期間(から)","利用者負担適用期間(まで)",
+  "1サービス種別","1支給決定期間(から)","1支給決定期間(まで)",
+  "2サービス種別","2支給決定期間(から)","2支給決定期間(まで)",
+  "3サービス種別","3支給決定期間(から)","3支給決定期間(まで)",
+  "契約完了","受給者証受取"
+];
+
+const COL_KEY = {
+  "利用者ID":"id","氏名":"name","フリガナ":"kana","契約状況":"status",
+  "契約開始(予定)日":"cstart","契約終了月":"cend","生年月日":"dob","年齢":"age",
+  "連絡先":"phone","住所":"address","特別地域加算該当":"special","担当相談員":"staff",
+  "療育手帳":"ryo","精神手帳":"sei","精神手帳の発行市町村":"seiCity",
+  "身体手帳":"shin","自立支援医療":"jiritu","自立支援医療の有効期限":"jirituExp",
+  "自立支援医療の発行市町村":"jirituCity","福祉サービス受給者証の発行市町村":"wcity",
+  "障害支援区分":"kubun","認定有効期間(から)":"certF","認定有効期間(まで)":"certT",
+  "備考":"notes","計画相談の支給期間(から)":"planF","計画相談の支給期間(まで)":"planT",
+  "次回計画更新日":"nextPlan","モニタリング期間":"monitoring",
+  "利用者負担適用期間(から)":"burdenF","利用者負担適用期間(まで)":"burdenT",
+  "1サービス種別":"svc1","1支給決定期間(から)":"svc1F","1支給決定期間(まで)":"svc1T",
+  "2サービス種別":"svc2","2支給決定期間(から)":"svc2F","2支給決定期間(まで)":"svc2T",
+  "3サービス種別":"svc3","3支給決定期間(から)":"svc3F","3支給決定期間(まで)":"svc3T",
+  "契約完了":"cdone","受給者証受取":"rdone"
+};
+
+const SCHED_FIELD = {
+  "契約":"fs-contract","アセスメント・計画案作成":"fs-assess",
+  "担当者会議":"fs-meeting","引継ぎ":"fs-handover",
+  "モニタリング":"fs-monitor","計画更新":"fs-planupd"
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let msalInstance = null;
+let msalAccount  = null;
+let users        = [];
+let currentUser  = null;
+let isEditing    = false;
+let googleTC     = null;   // token client
+let ocrDocType   = "受給者証";
+let ocrBase64    = null;
+let useSheetFallback = false;
+
+// ============================================================
+// PWA
+// ============================================================
+(function(){
+  const m = {
+    name:"利用者管理 - エンジョイント", short_name:"利用者管理",
+    start_url:".", display:"standalone", theme_color:"#1d4ed8", background_color:"#fff",
+    icons:[{src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%231d4ed8' rx='20'/%3E%3Ctext y='.9em' font-size='80'%3E📋%3C/text%3E%3C/svg%3E",sizes:"512x512",type:"image/svg+xml"}]
+  };
+  const link = document.createElement("link");
+  link.rel = "manifest";
+  link.href = URL.createObjectURL(new Blob([JSON.stringify(m)],{type:"application/json"}));
+  document.head.appendChild(link);
+})();
+if ("serviceWorker" in navigator) {
+  const sw = `self.addEventListener("install",e=>self.skipWaiting());self.addEventListener("activate",e=>e.waitUntil(clients.claim()));self.addEventListener("fetch",e=>e.respondWith(fetch(e.request).catch(()=>new Response("Offline"))));`;
+  navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:"application/javascript"}))).catch(()=>{});
+}
+
+// ============================================================
+// MSAL
+// ============================================================
+async function initMSAL() {
+  const redirectUri = (REDIRECT_URI === "ここを後で書き換え")
+    ? (window.location.href.split("?")[0].split("#")[0])
+    : REDIRECT_URI;
+
+  msalInstance = new msal.PublicClientApplication({
+    auth:{ clientId: AZURE_CLIENT_ID, authority:`https://login.microsoftonline.com/${AZURE_TENANT_ID}`, redirectUri },
+    cache:{ cacheLocation:"sessionStorage", storeAuthStateInCookie:false }
+  });
+  if (msalInstance.initialize) await msalInstance.initialize();
+  try { await msalInstance.handleRedirectPromise(); } catch(e){}
+
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length) { msalAccount = accounts[0]; return true; }
+  return false;
+}
+
+async function getToken() {
+  if (!msalAccount) throw new Error("未ログイン");
+  try {
+    const r = await msalInstance.acquireTokenSilent({ scopes: MSAL_SCOPES, account: msalAccount });
+    return r.accessToken;
+  } catch(e) {
+    const r = await msalInstance.acquireTokenPopup({ scopes: MSAL_SCOPES });
+    msalAccount = r.account;
+    return r.accessToken;
+  }
+}
+
+async function login() {
+  loading(true);
+  try {
+    const r = await msalInstance.loginPopup({ scopes: MSAL_SCOPES });
+    msalAccount = r.account;
+    await postLogin();
+  } catch(e) { toast("ログイン失敗: "+e.message,"error"); }
+  finally { loading(false); }
+}
+
+function logout() {
+  if (!confirm("ログアウトしますか？")) return;
+  msalInstance.logoutPopup().then(()=>{ msalAccount=null; users=[]; showScreen("login"); });
+}
+
+async function getDisplayName() {
+  try {
+    const t = await getToken();
+    const r = await fetch("https://graph.microsoft.com/v1.0/me?$select=displayName",{headers:{Authorization:`Bearer ${t}`}});
+    return (await r.json()).displayName || "";
+  } catch(e){ return ""; }
+}
+
+// ============================================================
+// GOOGLE AUTH (lazy)
+// ============================================================
+function onGoogleLoad() {
+  if (GOOGLE_CLIENT_ID === "ここにGoogle Client IDを入力") return;
+  try {
+    googleTC = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: "https://www.googleapis.com/auth/calendar.events",
+      callback: (resp) => {
+        if (resp.access_token) {
+          sessionStorage.setItem("gtok", resp.access_token);
+          sessionStorage.setItem("gtok_exp", String(Date.now() + (resp.expires_in||3600)*1000));
+        }
+      }
+    });
+  } catch(e){}
+}
+
+async function getGoogleToken() {
+  const cached = sessionStorage.getItem("gtok");
+  const exp    = parseInt(sessionStorage.getItem("gtok_exp")||"0");
+  if (cached && Date.now() < exp - 60000) return cached;
+
+  if (!googleTC) {
+    if (window.google && window.google.accounts) onGoogleLoad();
+    if (!googleTC) throw new Error("Google Client IDが設定されていません。定数を設定してください。");
+  }
+
+  return new Promise((resolve, reject) => {
+    googleTC.callback = (resp) => {
+      if (resp.error) { reject(new Error("Google認証エラー: "+resp.error)); return; }
+      const tok = resp.access_token;
+      sessionStorage.setItem("gtok", tok);
+      sessionStorage.setItem("gtok_exp", String(Date.now()+(resp.expires_in||3600)*1000));
+      resolve(tok);
+    };
+    googleTC.requestAccessToken({ prompt: "" });
+  });
+}
+
+// ============================================================
+// EXCEL HELPERS
+// ============================================================
+function rowToUser(arr) {
+  const u = {};
+  COLUMNS.forEach((col,i) => {
+    const key = COL_KEY[col];
+    const val  = arr[i] != null ? String(arr[i]) : "";
+    u[key] = (col==="特別地域加算該当"||col==="契約完了"||col==="受給者証受取")
+      ? (val==="○"||val==="true"||val==="TRUE"||val==="1")
+      : val;
+  });
+  return u;
+}
+
+function userToRow(u) {
+  return COLUMNS.map(col => {
+    const key = COL_KEY[col];
+    const val  = u[key];
+    if (col==="特別地域加算該当"||col==="契約完了"||col==="受給者証受取") return val?"○":"";
+    return val != null ? String(val) : "";
+  });
+}
+
+function colLetter(n) {
+  let s="";
+  while(n>0){ n--; s=String.fromCharCode(65+(n%26))+s; n=Math.floor(n/26); }
+  return s;
+}
+
+// ============================================================
+// EXCEL CRUD
+// ============================================================
+async function loadUsers() {
+  loading(true);
+  try {
+    const t = await getToken();
+    useSheetFallback = false;
+
+    // Try table
+    try {
+      const r = await fetch(`${EXCEL_URL}/workbook/tables/${encodeURIComponent(TABLE_NAME)}/rows?$top=2000`,
+        {headers:{Authorization:`Bearer ${t}`}});
+      if (r.ok) {
+        const d = await r.json();
+        users = (d.value||[]).map(row=>rowToUser(row.values[0]));
+        renderList(); return;
+      }
+    } catch(e){}
+    useSheetFallback = true;
+
+    // Sheet fallback
+    const r = await fetch(
+      `${EXCEL_URL}/workbook/worksheets/${encodeURIComponent(SHEET_NAME)}/usedRange`,
+      {headers:{Authorization:`Bearer ${t}`}});
+    if (!r.ok) { const e=await r.json(); throw new Error(e.error?.message||"Excel読み込みエラー"); }
+    const d = await r.json();
+    users = (d.values||[]).slice(1).filter(row=>row[0]).map(rowToUser);
+    renderList();
+  } catch(e) {
+    toast("読み込みエラー: "+e.message,"error");
+    document.getElementById("user-list").innerHTML =
+      `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">${e.message}</div></div>`;
+  } finally { loading(false); }
+}
+
+async function saveUser(u) {
+  loading(true);
+  try {
+    const t   = await getToken();
+    const row = [userToRow(u)];
+
+    if (!useSheetFallback) {
+      if (isEditing) {
+        // find row index then PATCH
+        const idx = await findTableRowIndex(t, u.id);
+        if (idx >= 0) {
+          const pr = await fetch(
+            `${EXCEL_URL}/workbook/tables/${encodeURIComponent(TABLE_NAME)}/rows/itemAt(index=${idx})`,
+            {method:"PATCH",headers:{Authorization:`Bearer ${t}`,"Content-Type":"application/json"},body:JSON.stringify({values:row})});
+          if (pr.ok) { toast("更新しました","success"); return; }
+        }
+      } else {
+        const pr = await fetch(
+          `${EXCEL_URL}/workbook/tables/${encodeURIComponent(TABLE_NAME)}/rows/add`,
+          {method:"POST",headers:{Authorization:`Bearer ${t}`,"Content-Type":"application/json"},body:JSON.stringify({values:row})});
+        if (pr.ok) { toast("登録しました","success"); return; }
+      }
+      useSheetFallback = true;
+    }
+
+    // Sheet direct fallback
+    await saveToSheet(t, u, row[0]);
+
+  } catch(e) { toast("保存エラー: "+e.message,"error"); throw e; }
+  finally { loading(false); }
+}
+
+async function findTableRowIndex(token, userId) {
+  try {
+    const r = await fetch(`${EXCEL_URL}/workbook/tables/${encodeURIComponent(TABLE_NAME)}/rows?$top=2000`,
+      {headers:{Authorization:`Bearer ${token}`}});
+    if (!r.ok) return -1;
+    const d = await r.json();
+    return (d.value||[]).findIndex(row=>String(row.values[0][0])===String(userId));
+  } catch(e){ return -1; }
+}
+
+async function saveToSheet(token, u, rowArr) {
+  const r = await fetch(
+    `${EXCEL_URL}/workbook/worksheets/${encodeURIComponent(SHEET_NAME)}/usedRange`,
+    {headers:{Authorization:`Bearer ${token}`}});
+  const d = r.ok ? await r.json() : {values:[]};
+  const rows = d.values || [];
+
+  if (isEditing) {
+    const ri = rows.findIndex((row,i)=>i>0 && String(row[0])===String(u.id));
+    if (ri > 0) {
+      const addr = `A${ri+1}:${colLetter(COLUMNS.length)}${ri+1}`;
+      await patchRange(token, addr, [rowArr]);
+      toast("更新しました","success"); return;
+    }
+  }
+  const next = rows.length + 1;
+  const addr = `A${next}:${colLetter(COLUMNS.length)}${next}`;
+  await patchRange(token, addr, [rowArr]);
+  toast("登録しました","success");
+}
+
+async function patchRange(token, address, values) {
+  const r = await fetch(
+    `${EXCEL_URL}/workbook/worksheets/${encodeURIComponent(SHEET_NAME)}/range(address='${address}')`,
+    {method:"PATCH",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({values})});
+  if (!r.ok) { const e=await r.json(); throw new Error(e.error?.message||"Range更新エラー"); }
+}
+
+// ============================================================
+// GOOGLE CALENDAR
+// ============================================================
+async function registerCalEvent(schedType, colorId) {
+  const fid  = SCHED_FIELD[schedType];
+  const date = document.getElementById(fid)?.value;
+  if (!date) { toast("日付を入力してください","error"); return; }
+  const name  = document.getElementById("f-name")?.value||"";
+  if (!name)  { toast("氏名を入力してください","error"); return; }
+
+  loading(true);
+  try {
+    const tok   = await getGoogleToken();
+    const kana  = document.getElementById("f-kana")?.value||"";
+    const staff = document.getElementById("f-staff")?.value||"";
+    const body  = {
+      summary:`【${schedType}】${name}`,
+      description:`利用者名：${name}\nフリガナ：${kana}\n担当相談員：${staff}\n支援内容：${schedType}\n※相談支援事業所エンジョイント`,
+      start:{dateTime:`${date}T09:00:00`,timeZone:"Asia/Tokyo"},
+      end:  {dateTime:`${date}T10:00:00`,timeZone:"Asia/Tokyo"},
+      colorId:String(colorId)
+    };
+    const r = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events",
+      {method:"POST",headers:{Authorization:`Bearer ${tok}`,"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if (!r.ok) { const e=await r.json(); throw new Error(e.error?.message||"登録失敗"); }
+    toast(`${schedType}の予定をGoogleカレンダーに登録しました`,"success");
+  } catch(e) { toast("カレンダー登録失敗: "+e.message,"error"); }
+  finally { loading(false); }
+}
+
+// ============================================================
+// OCR
+// ============================================================
+const OCR_PROMPTS = {
+  "受給者証":`受給者証（障害福祉サービス受給者証）から以下のJSONを抽出してください。存在しない項目はnull。
+{"氏名":null,"フリガナ":null,"生年月日":"YYYY-MM-DD","住所":null,"発行市町村":null,"障害支援区分":null,
+"認定有効期間_から":"YYYY-MM-DD","認定有効期間_まで":"YYYY-MM-DD",
+"計画相談の支給期間_から":"YYYY-MM-DD","計画相談の支給期間_まで":"YYYY-MM-DD",
+"モニタリング期間":null,"利用者負担適用期間_から":"YYYY-MM-DD","利用者負担適用期間_まで":"YYYY-MM-DD",
+"svc1":null,"svc1_から":"YYYY-MM-DD","svc1_まで":"YYYY-MM-DD",
+"svc2":null,"svc2_から":"YYYY-MM-DD","svc2_まで":"YYYY-MM-DD",
+"svc3":null,"svc3_から":"YYYY-MM-DD","svc3_まで":"YYYY-MM-DD"}
+JSONのみ出力。`,
+  "療育手帳":`療育手帳から以下のJSONを抽出してください。
+{"氏名":null,"フリガナ":null,"生年月日":"YYYY-MM-DD","住所":null,"等級":null}
+JSONのみ出力。`,
+  "精神手帳":`精神障害者保健福祉手帳から以下のJSONを抽出してください。
+{"氏名":null,"フリガナ":null,"生年月日":"YYYY-MM-DD","住所":null,"等級":null,"発行市町村":null}
+JSONのみ出力。`,
+  "身体手帳":`身体障害者手帳から以下のJSONを抽出してください。
+{"氏名":null,"フリガナ":null,"生年月日":"YYYY-MM-DD","住所":null,"等級":null}
+JSONのみ出力。`,
+  "自立支援医療":`自立支援医療受給者証から以下のJSONを抽出してください。
+{"氏名":null,"生年月日":"YYYY-MM-DD","種別":null,"有効期限":"YYYY-MM-DD","発行市町村":null}
+JSONのみ出力。`
+};
+
+function resizeImg(file) {
+  return new Promise((resolve,reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX=1600; let {width,height}=img;
+        if(width>MAX||height>MAX){
+          if(width>height){height=Math.round(height*MAX/width);width=MAX;}
+          else{width=Math.round(width*MAX/height);height=MAX;}
+        }
+        const c=document.createElement("canvas"); c.width=width; c.height=height;
+        c.getContext("2d").drawImage(img,0,0,width,height);
+        resolve(c.toDataURL("image/jpeg",0.85));
+      };
+      img.onerror=reject; img.src=e.target.result;
+    };
+    reader.onerror=reject; reader.readAsDataURL(file);
+  });
+}
+
+async function runOCR() {
+  if (!ocrBase64) { toast("画像を選択してください","error"); return; }
+  if (ANTHROPIC_API_KEY==="ここにAPIキーを入力") { toast("Anthropic APIキーを設定してください","error"); return; }
+  const btn = document.getElementById("ocr-btn");
+  btn.disabled = true;
+  loading(true);
+  try {
+    const mtype = ocrBase64.split(";")[0].split(":")[1];
+    const b64   = ocrBase64.split(",")[1];
+    const resp  = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{
+        "x-api-key":ANTHROPIC_API_KEY,
+        "anthropic-version":"2023-06-01",
+        "content-type":"application/json",
+        "anthropic-dangerous-direct-browser-calls":"true"
+      },
+      body:JSON.stringify({
+        model:"claude-opus-4-7",
+        max_tokens:1024,
+        messages:[{role:"user",content:[
+          {type:"image",source:{type:"base64",media_type:mtype,data:b64}},
+          {type:"text",text:OCR_PROMPTS[ocrDocType]||OCR_PROMPTS["受給者証"]}
+        ]}]
+      })
+    });
+    if (!resp.ok) { const e=await resp.json(); throw new Error(e.error?.message||"API Error"); }
+    const data = await resp.json();
+    const text = data.content[0]?.text||"";
+    const m    = text.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error("JSON抽出失敗");
+    applyOCR(JSON.parse(m[0]));
+    toast("OCR完了！フォームに自動入力しました","success");
+    switchFTab("t-basic");
+  } catch(e) { toast("OCR失敗: "+e.message+"\n手動入力してください","error"); }
+  finally { loading(false); btn.disabled=false; }
+}
+
+function applyOCR(d) {
+  const s=(id,v)=>{ const el=document.getElementById(id); if(el&&v!=null&&v!=="")el.value=v; };
+  s("f-name",d["氏名"]); s("f-kana",d["フリガナ"]);
+  s("f-dob",d["生年月日"]); s("f-address",d["住所"]);
+  if(d["生年月日"]) document.getElementById("f-age").value=calcAge(d["生年月日"]);
+
+  switch(ocrDocType){
+    case "受給者証":
+      s("f-wcity",d["発行市町村"]); s("f-kubun",d["障害支援区分"]);
+      s("f-cert-f",d["認定有効期間_から"]); s("f-cert-t",d["認定有効期間_まで"]);
+      s("f-plan-f",d["計画相談の支給期間_から"]); s("f-plan-t",d["計画相談の支給期間_まで"]);
+      s("f-monitoring",d["モニタリング期間"]);
+      s("f-burden-f",d["利用者負担適用期間_から"]); s("f-burden-t",d["利用者負担適用期間_まで"]);
+      s("f-svc1",d["svc1"]); s("f-svc1-f",d["svc1_から"]); s("f-svc1-t",d["svc1_まで"]);
+      s("f-svc2",d["svc2"]); s("f-svc2-f",d["svc2_から"]); s("f-svc2-t",d["svc2_まで"]);
+      s("f-svc3",d["svc3"]); s("f-svc3-f",d["svc3_から"]); s("f-svc3-t",d["svc3_まで"]);
+      break;
+    case "療育手帳": s("f-ryo",d["等級"]); break;
+    case "精神手帳": s("f-sei",d["等級"]); s("f-sei-city",d["発行市町村"]); break;
+    case "身体手帳": s("f-shin",d["等級"]); break;
+    case "自立支援医療":
+      s("f-jiritu",d["種別"]); s("f-jiritu-exp",d["有効期限"]); s("f-jiritu-city",d["発行市町村"]); break;
+  }
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function loading(on) { document.getElementById("loading-overlay").classList.toggle("active",on); }
+
+function toast(msg, type="") {
+  const c = document.getElementById("toast-container");
+  const el = document.createElement("div");
+  el.className = "toast"+(type?" "+type:""); el.textContent=msg; c.appendChild(el);
+  setTimeout(()=>{ el.style.opacity="0"; el.style.transition="opacity .3s"; setTimeout(()=>el.remove(),300); },3000);
+}
+
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById(name+"-screen")?.classList.add("active");
+}
+
+function switchFTab(tabId) {
+  document.querySelectorAll("#form-tabs .tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tabId));
+  document.querySelectorAll("#form-screen .tab-content").forEach(c=>c.classList.toggle("active",c.id===tabId));
+}
+
+function switchDTab(tabId) {
+  document.querySelectorAll("#detail-tabs .tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.dtab===tabId));
+  document.querySelectorAll("#detail-screen .tab-content").forEach(c=>c.classList.toggle("active",c.id===tabId));
+}
+
+function calcAge(dob) {
+  if(!dob) return "";
+  const d=new Date(dob); if(isNaN(d.getTime())) return "";
+  const t=new Date(); let a=t.getFullYear()-d.getFullYear();
+  const m=t.getMonth()-d.getMonth();
+  if(m<0||(m===0&&t.getDate()<d.getDate())) a--;
+  return a>=0?String(a):"";
+}
+
+function genId() {
+  const n=new Date();
+  return `U${String(n.getFullYear()).slice(2)}${String(n.getMonth()+1).padStart(2,"0")}${String(n.getDate()).padStart(2,"0")}${String(Math.floor(Math.random()*1000)).padStart(3,"0")}`;
+}
+
+// ============================================================
+// DASHBOARD RENDERING
+// ============================================================
+function renderList(filter="") {
+  const container = document.getElementById("user-list");
+  const filtered  = filter
+    ? users.filter(u=>(u.name||"").includes(filter)||(u.kana||"").includes(filter))
+    : users;
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">${filter?"🔍":"👤"}</div><div class="empty-text">${filter?"該当なし":"利用者が登録されていません"}</div></div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(u=>{
+    const init = (u.name||"?").charAt(0);
+    const badge = u.status==="契約中"
+      ? `<span class="badge badge-green">契約中</span>`
+      : u.status==="終了"
+        ? `<span class="badge badge-gray">終了</span>`
+        : `<span class="badge badge-blue">契約前</span>`;
+    const checks = [
+      u.cdone ? `<span class="badge badge-yellow">✓ 契約完了</span>` : "",
+      u.rdone ? `<span class="badge badge-yellow">✓ 受給者証</span>` : ""
+    ].filter(Boolean).join("");
+    return `<div class="user-card" onclick="openDetail('${u.id}')">
+      <div class="user-avatar">${init}</div>
+      <div class="user-card-body">
+        <div class="user-card-name">${u.name||"(氏名なし)"}</div>
+        <div class="user-card-sub">${u.kana||""}${u.staff?" ｜ "+u.staff:""}</div>
+        <div class="user-card-badges">${badge}${checks}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ============================================================
+// FORM
+// ============================================================
+async function openNewForm() {
+  isEditing=false; currentUser=null; ocrBase64=null;
+  clearForm();
+  document.getElementById("f-id").value=genId();
+  document.getElementById("form-title").textContent="新規登録";
+  const name=await getDisplayName();
+  if(name) document.getElementById("f-staff").value=name;
+  switchFTab("t-ocr");
+  showScreen("form");
+}
+
+function openEditForm(u) {
+  isEditing=true; currentUser=u; ocrBase64=null;
+  clearForm();
+  fillForm(u);
+  document.getElementById("form-title").textContent="編集";
+  switchFTab("t-basic");
+  showScreen("form");
+}
+
+function clearForm() {
+  document.querySelectorAll("#form-screen input,#form-screen select,#form-screen textarea").forEach(el=>{
+    if(el.type==="checkbox") el.checked=false; else el.value="";
+  });
+  ocrDocType="受給者証";
+  document.querySelectorAll(".doc-btn").forEach(b=>b.classList.toggle("active",b.dataset.doc==="受給者証"));
+  document.getElementById("ocr-preview").style.display="none";
+  document.getElementById("ocr-btn").disabled=true;
+  validateSave();
+}
+
+function fillForm(u) {
+  const s=(id,v)=>{
+    const el=document.getElementById(id); if(!el) return;
+    if(el.type==="checkbox") el.checked=!!v; else el.value=v||"";
+  };
+  s("f-id",u.id); s("f-name",u.name); s("f-kana",u.kana);
+  s("f-dob",u.dob); s("f-age",u.age); s("f-phone",u.phone); s("f-address",u.address);
+  s("f-staff",u.staff); s("f-status",u.status||"契約前"); s("f-special",u.special);
+  s("f-cstart",u.cstart); s("f-cend",u.cend); s("f-notes",u.notes);
+  s("f-ryo",u.ryo); s("f-sei",u.sei); s("f-sei-city",u.seiCity); s("f-shin",u.shin);
+  s("f-jiritu",u.jiritu); s("f-jiritu-exp",u.jirituExp); s("f-jiritu-city",u.jirituCity);
+  s("f-wcity",u.wcity); s("f-kubun",u.kubun);
+  s("f-cert-f",u.certF); s("f-cert-t",u.certT);
+  s("f-plan-f",u.planF); s("f-plan-t",u.planT);
+  s("f-next-plan",u.nextPlan); s("f-monitoring",u.monitoring);
+  s("f-burden-f",u.burdenF); s("f-burden-t",u.burdenT);
+  s("f-svc1",u.svc1); s("f-svc1-f",u.svc1F); s("f-svc1-t",u.svc1T);
+  s("f-svc2",u.svc2); s("f-svc2-f",u.svc2F); s("f-svc2-t",u.svc2T);
+  s("f-svc3",u.svc3); s("f-svc3-f",u.svc3F); s("f-svc3-t",u.svc3T);
+  s("f-cdone",u.cdone); s("f-rdone",u.rdone);
+  validateSave();
+}
+
+function getFormData() {
+  const g=(id)=>{const el=document.getElementById(id);if(!el)return"";return el.type==="checkbox"?el.checked:el.value||"";};
+  return {
+    id:g("f-id"),name:g("f-name"),kana:g("f-kana"),status:g("f-status"),
+    cstart:g("f-cstart"),cend:g("f-cend"),dob:g("f-dob"),age:g("f-age"),
+    phone:g("f-phone"),address:g("f-address"),special:g("f-special"),staff:g("f-staff"),
+    ryo:g("f-ryo"),sei:g("f-sei"),seiCity:g("f-sei-city"),shin:g("f-shin"),
+    jiritu:g("f-jiritu"),jirituExp:g("f-jiritu-exp"),jirituCity:g("f-jiritu-city"),
+    wcity:g("f-wcity"),kubun:g("f-kubun"),
+    certF:g("f-cert-f"),certT:g("f-cert-t"),notes:g("f-notes"),
+    planF:g("f-plan-f"),planT:g("f-plan-t"),nextPlan:g("f-next-plan"),monitoring:g("f-monitoring"),
+    burdenF:g("f-burden-f"),burdenT:g("f-burden-t"),
+    svc1:g("f-svc1"),svc1F:g("f-svc1-f"),svc1T:g("f-svc1-t"),
+    svc2:g("f-svc2"),svc2F:g("f-svc2-f"),svc2T:g("f-svc2-t"),
+    svc3:g("f-svc3"),svc3F:g("f-svc3-f"),svc3T:g("f-svc3-t"),
+    cdone:g("f-cdone"),rdone:g("f-rdone")
+  };
+}
+
+function validateSave() {
+  const v = (document.getElementById("f-name")?.value||"").trim();
+  document.getElementById("form-save-btn").disabled = !v;
+}
+
+// ============================================================
+// DETAIL
+// ============================================================
+function openDetail(userId) {
+  currentUser = users.find(u=>u.id===userId);
+  if (!currentUser) return;
+  document.getElementById("detail-title").textContent = currentUser.name||"詳細";
+  renderDetail(currentUser);
+  switchDTab("dt-basic");
+  showScreen("detail");
+}
+
+function renderDetail(u) {
+  const r=(label,val)=>val?`<div class="detail-row"><div class="detail-label">${label}</div><div class="detail-value">${val}</div></div>`:"";
+  const b=(v)=>v?"○":"";
+  const sBadge = u.status==="契約中"?`<span class="badge badge-green">契約中</span>`:u.status==="終了"?`<span class="badge badge-gray">終了</span>`:`<span class="badge badge-blue">契約前</span>`;
+  const badges = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
+    ${sBadge}
+    ${u.cdone?`<span class="badge badge-yellow">契約完了</span>`:""}
+    ${u.rdone?`<span class="badge badge-yellow">受給者証受取</span>`:""}
+  </div>`;
+
+  document.getElementById("dt-basic").innerHTML = badges+`<div class="card">
+    ${r("利用者ID",u.id)}${r("フリガナ",u.kana)}${r("生年月日",u.dob)}
+    ${r("年齢",u.age?u.age+"歳":"")}${r("連絡先",u.phone)}${r("住所",u.address)}
+    ${r("担当相談員",u.staff)}${r("契約状況",u.status)}
+    ${r("契約開始(予定)日",u.cstart)}${r("契約終了月",u.cend)}
+    ${r("特別地域加算",b(u.special))}${r("備考",u.notes)}
+  </div>`;
+
+  document.getElementById("dt-med").innerHTML = `<div class="card">
+    ${r("療育手帳",u.ryo)}${r("精神手帳",u.sei)}${r("精神手帳 発行市町村",u.seiCity)}
+    ${r("身体手帳",u.shin)}${r("自立支援医療",u.jiritu)}
+    ${r("自立支援医療 有効期限",u.jirituExp)}${r("自立支援医療 発行市町村",u.jirituCity)}
+  </div>`;
+
+  document.getElementById("dt-wel").innerHTML = `<div class="card">
+    ${r("発行市町村",u.wcity)}${r("障害支援区分",u.kubun)}
+    ${r("認定有効期間(から)",u.certF)}${r("認定有効期間(まで)",u.certT)}
+    ${r("計画相談支給期間(から)",u.planF)}${r("計画相談支給期間(まで)",u.planT)}
+    ${r("次回計画更新日",u.nextPlan)}${r("モニタリング期間",u.monitoring)}
+    ${r("利用者負担適用(から)",u.burdenF)}${r("利用者負担適用(まで)",u.burdenT)}
+    ${u.svc1?r("サービス①",u.svc1)+""+r("支給①(から)",u.svc1F)+r("支給①(まで)",u.svc1T):""}
+    ${u.svc2?r("サービス②",u.svc2)+""+r("支給②(から)",u.svc2F)+r("支給②(まで)",u.svc2T):""}
+    ${u.svc3?r("サービス③",u.svc3)+""+r("支給③(から)",u.svc3F)+r("支給③(まで)",u.svc3T):""}
+  </div>`;
+
+  document.getElementById("dt-sched").innerHTML = `<div class="card">
+    ${r("契約完了",b(u.cdone))}${r("受給者証受取",b(u.rdone))}
+  </div>`;
+}
+
+// ============================================================
+// POST LOGIN
+// ============================================================
+async function postLogin() {
+  showScreen("dashboard");
+  // Try lazy Google init
+  if (window.google?.accounts) onGoogleLoad();
+  await loadUsers();
+}
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+document.addEventListener("DOMContentLoaded", async () => {
+  const loggedIn = await initMSAL();
+  if (loggedIn) { await postLogin(); } else { showScreen("login"); }
+
+  document.getElementById("login-btn").addEventListener("click", login);
+  document.getElementById("logout-btn").addEventListener("click", logout);
+  document.getElementById("reload-btn").addEventListener("click", loadUsers);
+  document.getElementById("new-btn").addEventListener("click", openNewForm);
+
+  document.getElementById("form-back-btn").addEventListener("click", ()=>showScreen("dashboard"));
+  document.getElementById("detail-back-btn").addEventListener("click", ()=>showScreen("dashboard"));
+  document.getElementById("detail-edit-btn").addEventListener("click", ()=>{ if(currentUser) openEditForm(currentUser); });
+
+  // Form save
+  document.getElementById("form-save-btn").addEventListener("click", async ()=>{
+    const u = getFormData();
+    try {
+      await saveUser(u);
+      if (isEditing) {
+        const i=users.findIndex(x=>x.id===u.id);
+        if(i>=0) users[i]=u;
+        openDetail(u.id);
+      } else {
+        users.push(u);
+        renderList();
+        showScreen("dashboard");
+      }
+    } catch(e){}
+  });
+
+  // Tab switching (form)
+  document.getElementById("form-tabs").addEventListener("click", e=>{
+    const b=e.target.closest(".tab-btn"); if(b) switchFTab(b.dataset.tab);
+  });
+  // Tab switching (detail)
+  document.getElementById("detail-tabs").addEventListener("click", e=>{
+    const b=e.target.closest(".tab-btn"); if(b) switchDTab(b.dataset.dtab);
+  });
+
+  // Search
+  document.getElementById("search-input").addEventListener("input", e=>renderList(e.target.value));
+
+  // DOB → age
+  document.getElementById("f-dob").addEventListener("input", e=>{
+    document.getElementById("f-age").value=calcAge(e.target.value);
+  });
+
+  // Name → validate
+  document.getElementById("f-name").addEventListener("input", validateSave);
+
+  // OCR doc type
+  document.getElementById("doc-type-btns").addEventListener("click", e=>{
+    const b=e.target.closest(".doc-btn"); if(!b) return;
+    ocrDocType=b.dataset.doc;
+    document.querySelectorAll(".doc-btn").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+  });
+
+  // OCR file
+  document.getElementById("ocr-file").addEventListener("change", async e=>{
+    const file=e.target.files[0]; if(!file) return;
+    try {
+      ocrBase64 = await resizeImg(file);
+      document.getElementById("ocr-img").src=ocrBase64;
+      document.getElementById("ocr-preview").style.display="block";
+      document.getElementById("ocr-btn").disabled=false;
+    } catch(err){ toast("画像読込エラー: "+err.message,"error"); }
+  });
+  document.getElementById("ocr-btn").addEventListener("click", runOCR);
+
+  // Calendar buttons
+  document.getElementById("t-sched").addEventListener("click", async e=>{
+    const b=e.target.closest("[data-sched]"); if(!b) return;
+    b.disabled=true;
+    try { await registerCalEvent(b.dataset.sched, parseInt(b.dataset.color)); }
+    finally { b.disabled=false; }
+  });
+
+  // Checkbox instant save
+  ["f-cdone","f-rdone"].forEach(id=>{
+    document.getElementById(id)?.addEventListener("change", async ()=>{
+      if(!isEditing||!currentUser) return;
+      const u={...currentUser, cdone:document.getElementById("f-cdone").checked, rdone:document.getElementById("f-rdone").checked};
+      try { await saveUser(u); const i=users.findIndex(x=>x.id===u.id); if(i>=0) users[i]=u; }
+      catch(e){}
+    });
+  });
+});
+</script>
+</body>
+</html>
