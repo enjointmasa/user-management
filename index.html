@@ -582,15 +582,23 @@ if ("serviceWorker" in navigator) {
 // ============================================================
 async function initMSAL() {
   const redirectUri = (REDIRECT_URI === "ここを後で書き換え")
-    ? (window.location.href.split("?")[0].split("#")[0])
+    ? (window.location.origin + window.location.pathname)
     : REDIRECT_URI;
 
   msalInstance = new msal.PublicClientApplication({
     auth:{ clientId: AZURE_CLIENT_ID, authority:`https://login.microsoftonline.com/${AZURE_TENANT_ID}`, redirectUri },
-    cache:{ cacheLocation:"sessionStorage", storeAuthStateInCookie:false }
+    cache:{ cacheLocation:"localStorage", storeAuthStateInCookie:true }
   });
   if (msalInstance.initialize) await msalInstance.initialize();
-  try { await msalInstance.handleRedirectPromise(); } catch(e){}
+
+  // リダイレクト後の認証結果を必ずキャプチャ
+  try {
+    const resp = await msalInstance.handleRedirectPromise();
+    if (resp && resp.account) {
+      msalAccount = resp.account;
+      return true;
+    }
+  } catch(e) { console.error("Redirect error:", e); }
 
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length) { msalAccount = accounts[0]; return true; }
