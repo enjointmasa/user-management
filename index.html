@@ -246,21 +246,31 @@
 
 <!-- Settings Modal -->
 <div id="settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5000;align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:12px;padding:24px;width:calc(100% - 40px);max-width:480px;max-height:90vh;overflow-y:auto;">
-    <h2 style="font-size:16px;font-weight:700;margin-bottom:16px;">⚙️ API設定</h2>
-    <p style="font-size:12px;color:#6b7280;margin-bottom:16px;">キーはこのブラウザにのみ保存されます。GitHubには送信されません。</p>
-    <div style="margin-bottom:14px;">
-      <label style="display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px;">ANTHROPIC API KEY（OCR用）</label>
+  <div style="background:white;border-radius:12px;padding:24px;width:calc(100% - 40px);max-width:520px;max-height:90vh;overflow-y:auto;">
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:4px;">⚙️ API設定</h2>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:16px;">キーはこのブラウザにのみ保存。GitHubには送信されません。</p>
+
+    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">OCR設定</div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:11px;color:#6b7280;margin-bottom:4px;">Anthropic API Key</label>
       <input type="password" id="s-anthropic" class="form-control" placeholder="sk-ant-...">
     </div>
-    <div style="margin-bottom:14px;">
-      <label style="display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px;">GOOGLE CLIENT ID（カレンダー用）</label>
+
+    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Googleカレンダー設定</div>
+    <div style="margin-bottom:10px;">
+      <label style="display:block;font-size:11px;color:#6b7280;margin-bottom:4px;">Google Client ID</label>
       <input type="text" id="s-google-cid" class="form-control" placeholder="xxxx.apps.googleusercontent.com">
     </div>
-    <div style="margin-bottom:20px;">
-      <label style="display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px;">GOOGLE API KEY（カレンダー用）</label>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:11px;color:#6b7280;margin-bottom:4px;">Google API Key</label>
       <input type="text" id="s-google-key" class="form-control" placeholder="AIzaSy...">
     </div>
+
+    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">担当者別カレンダーID</div>
+    <p style="font-size:11px;color:#6b7280;margin-bottom:10px;">担当者名とGoogleカレンダーIDを登録。未登録の担当者はprimaryカレンダーに登録されます。<br>カレンダーIDの確認：Googleカレンダー → 設定 → 対象カレンダー → 「カレンダーの統合」</p>
+    <div id="staff-cal-list" style="margin-bottom:10px;"></div>
+    <button class="btn btn-secondary btn-sm" id="add-staff-cal-btn" style="margin-bottom:16px;">＋ 担当者を追加</button>
+
     <div style="display:flex;gap:10px;">
       <button class="btn btn-primary" style="flex:1;" id="settings-save-btn">保存</button>
       <button class="btn btn-secondary" style="flex:1;" id="settings-close-btn">キャンセル</button>
@@ -866,7 +876,10 @@ async function registerCalEvent(schedType, colorId) {
       end:  {dateTime:`${date}T10:00:00`,timeZone:"Asia/Tokyo"},
       colorId:String(colorId)
     };
-    const r = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events",
+    const calMap = JSON.parse(localStorage.getItem("staff_cal_map")||"[]");
+    const calEntry = calMap.find(m => m.name === staff);
+    const calId = calEntry ? encodeURIComponent(calEntry.calId) : "primary";
+    const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calId}/events`,
       {method:"POST",headers:{Authorization:`Bearer ${tok}`,"Content-Type":"application/json"},body:JSON.stringify(body)});
     if (!r.ok) { const e=await r.json(); throw new Error(e.error?.message||"登録失敗"); }
     toast(`${schedType}の予定をGoogleカレンダーに登録しました`,"success");
@@ -1267,11 +1280,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("login-btn").textContent = "⚠️ 再読み込みしてください";
   }
 
-  // Settings modal
+  // ---- Settings modal ----
+  function renderStaffCalList() {
+    const map = JSON.parse(localStorage.getItem("staff_cal_map")||"[]");
+    const list = document.getElementById("staff-cal-list");
+    list.innerHTML = map.map((row,i)=>`
+      <div style="display:flex;gap:6px;margin-bottom:6px;" data-idx="${i}">
+        <input type="text" class="form-control" style="flex:1;" placeholder="担当者名（例：鳥毛正弘）" value="${row.name||""}" data-field="name">
+        <input type="text" class="form-control" style="flex:2;" placeholder="カレンダーID（例：xxx@gmail.com）" value="${row.calId||""}" data-field="calId">
+        <button class="btn btn-danger btn-sm" onclick="removeStaffCal(${i})">✕</button>
+      </div>`).join("");
+  }
+  window.removeStaffCal = (i)=>{
+    const map = JSON.parse(localStorage.getItem("staff_cal_map")||"[]");
+    map.splice(i,1);
+    localStorage.setItem("staff_cal_map", JSON.stringify(map));
+    renderStaffCalList();
+  };
+  document.getElementById("add-staff-cal-btn").addEventListener("click", ()=>{
+    const map = JSON.parse(localStorage.getItem("staff_cal_map")||"[]");
+    map.push({name:"", calId:""});
+    localStorage.setItem("staff_cal_map", JSON.stringify(map));
+    renderStaffCalList();
+  });
+
   document.getElementById("settings-btn").addEventListener("click", ()=>{
     document.getElementById("s-anthropic").value = localStorage.getItem("anthropic_api_key")||"";
     document.getElementById("s-google-cid").value = localStorage.getItem("google_client_id")||"";
     document.getElementById("s-google-key").value = localStorage.getItem("google_api_key")||"";
+    renderStaffCalList();
     document.getElementById("settings-modal").style.display = "flex";
   });
   document.getElementById("settings-close-btn").addEventListener("click", ()=>{
@@ -1284,9 +1321,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (ak) localStorage.setItem("anthropic_api_key", ak);
     if (gc) localStorage.setItem("google_client_id", gc);
     if (gk) localStorage.setItem("google_api_key", gk);
+    // スタッフカレンダーマップを保存
+    const rows = [...document.querySelectorAll("#staff-cal-list [data-idx]")];
+    const map = rows.map(row=>({
+      name: row.querySelector("[data-field='name']").value.trim(),
+      calId: row.querySelector("[data-field='calId']").value.trim()
+    })).filter(r=>r.name && r.calId);
+    localStorage.setItem("staff_cal_map", JSON.stringify(map));
     document.getElementById("settings-modal").style.display = "none";
-    toast("設定を保存しました", "success");
-    // Google認証を再初期化
+    toast("設定を保存しました","success");
     if (gc && window.google?.accounts) onGoogleLoad();
   });
 
